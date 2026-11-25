@@ -8,11 +8,47 @@ const listMessage = document.querySelector('#list-message');
 const search = document.querySelector('#search');
 const statusFilter = document.querySelector('#filter-status');
 const categoryFilter = document.querySelector('#filter-category');
+const priorityFilter = document.querySelector('#filter-priority');
 
 const statusLabels = { new: 'Новая', in_progress: 'В работе', resolved: 'Завершена' };
 const priorityLabels = { low: 'Низкий', medium: 'Средний', high: 'Высокий' };
 const categoryLabels = { hardware: 'Оборудование', software: 'ПО', network: 'Сеть' };
 let lastRequest = 0;
+
+function createTicketElement(ticket) {
+  const li = document.createElement('li');
+  li.className = 'ticket';
+  li.dataset.testid = 'ticket-item';
+  li.dataset.id = String(ticket.id);
+
+  const title = document.createElement('h3');
+  title.className = 'ticket-title';
+  title.textContent = ticket.title;
+
+  const description = document.createElement('p');
+  description.className = 'ticket-description';
+  description.textContent = ticket.description;
+
+  const meta = document.createElement('div');
+  meta.className = 'ticket-meta';
+  [categoryLabels[ticket.category], priorityLabels[ticket.priority], statusLabels[ticket.status]].forEach((label) => {
+    const span = document.createElement('span');
+    span.textContent = label;
+    meta.appendChild(span);
+  });
+
+  li.append(title, description, meta);
+
+  if (ticket.status !== 'resolved') {
+    const button = document.createElement('button');
+    button.dataset.id = String(ticket.id);
+    button.dataset.next = ticket.status === 'new' ? 'in_progress' : 'resolved';
+    button.textContent = ticket.status === 'new' ? 'В работу' : 'Завершить';
+    li.appendChild(button);
+  }
+
+  return li;
+}
 
 async function loadTickets() {
   const requestId = ++lastRequest;
@@ -20,28 +56,21 @@ async function loadTickets() {
     const query = new URLSearchParams({
       search: search.value,
       status: statusFilter.value,
-      category: categoryFilter.value
+      category: categoryFilter.value,
+      priority: priorityFilter.value
     });
     const response = await fetch(`/api/tickets?${query.toString()}`);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
-    if (requestId !== lastRequest) return; // Не отображать устаревший ответ фильтрации.
+    if (requestId !== lastRequest) return;
     listMessage.textContent = '';
     count.textContent = String(data.total);
 
-    list.innerHTML = data.items.map((ticket) => {
-      const nextStatus = ticket.status === 'new' ? 'in_progress' : 'resolved';
-      const action = ticket.status === 'resolved' ? '' :
-        `<button data-id="${ticket.id}" data-next="${nextStatus}">${ticket.status === 'new' ? 'В работу' : 'Завершить'}</button>`;
-      return `<li class="ticket" data-testid="ticket-item" data-id="${ticket.id}">
-        <h3 class="ticket-title">${ticket.title}</h3>
-        <p class="ticket-description">${ticket.description}</p>
-        <div class="ticket-meta"><span>${categoryLabels[ticket.category]}</span>
-          <span>${priorityLabels[ticket.priority]}</span><span>${statusLabels[ticket.status]}</span></div>
-        ${action}
-      </li>`;
-    }).join('');
-    if (data.total === 0) list.textContent = 'Заявок по заданным условиям нет.';
+    if (data.total === 0) {
+      list.textContent = 'Заявок по заданным условиям нет.';
+    } else {
+      list.replaceChildren(...data.items.map(createTicketElement));
+    }
   } catch (_) {
     if (requestId !== lastRequest) return;
     listMessage.textContent = 'Не удалось загрузить заявки.';
@@ -76,7 +105,8 @@ list.addEventListener('click', async (event) => {
   const button = event.target.closest('button[data-id]');
   if (!button) return;
   const response = await fetch(`/api/tickets/${button.dataset.id}/status`, {
-    method: 'PATCH', headers: { 'content-type': 'application/json' },
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ status: button.dataset.next })
   });
   if (!response.ok) {
@@ -86,5 +116,7 @@ list.addEventListener('click', async (event) => {
   await loadTickets();
 });
 
-[search, statusFilter, categoryFilter].forEach((element) => element.addEventListener('input', loadTickets));
+[search, statusFilter, categoryFilter, priorityFilter].forEach((element) =>
+  element.addEventListener('input', loadTickets)
+);
 loadTickets();
