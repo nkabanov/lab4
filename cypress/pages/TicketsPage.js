@@ -5,4 +5,11 @@ export class TicketsPage {
   searchFor(text) { cy.get('[data-testid="search"]').clear().type(text); }
   setStatus(status) { cy.get('[data-testid="status-filter"]').select(status); }
   setCategory(category) { cy.get('[data-testid="category-filter"]').select(category); }
+  setPriority(priority) { cy.get('[data-testid="priority-filter"]').select(priority); }
+  itemByTitle(title) {
+    return this.items().contains('.ticket-title', title).closest('[data-testid="ticket-item"]');
+  }
+  clickActionForTitle(title) {
+    this.itemByTitle(title).find('button').click();
+  }
 }
